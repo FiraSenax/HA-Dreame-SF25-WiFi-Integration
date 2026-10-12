@@ -65,12 +65,14 @@ class ModesSafetyTests(unittest.IsolatedAsyncioTestCase):
         self.calls.append(args)
 
     async def test_virtual_mode_cannot_interrupt_running_cycle(self):
+        self.coordinator.entry.options[const.CONF_VIRTUAL_MODES] = True
         with self.assertRaises(exceptions.HomeAssistantError):
             await self.modes.async_start_virtual(const.PROGRAM_STIR)
         self.assertEqual(self.calls, [])
         self.assertIsNone(self.modes.virtual_mode)
 
     async def test_failed_start_does_not_arm_stop_timer(self):
+        self.coordinator.entry.options[const.CONF_VIRTUAL_MODES] = True
         self.coordinator.data[const.PROP_PROGRAM] = const.PROGRAM_OPTIONS['idle']
         self.coordinator.client.set_property = Mock(side_effect=RuntimeError('rejected'))
         with self.assertRaises(RuntimeError):
@@ -85,6 +87,12 @@ class ModesSafetyTests(unittest.IsolatedAsyncioTestCase):
         await self.modes._async_finish_virtual()
         self.assertEqual(self.calls, [])
         self.assertIsNone(self.modes.virtual_mode)
+
+    async def test_virtual_mode_requires_explicit_opt_in(self):
+        self.coordinator.data[const.PROP_PROGRAM] = const.PROGRAM_OPTIONS['idle']
+        with self.assertRaises(exceptions.HomeAssistantError):
+            await self.modes.async_start_virtual(const.PROGRAM_STIR)
+        self.assertEqual(self.calls, [])
 
     async def test_automatic_mode_is_off_by_default(self):
         self.coordinator.data[const.PROP_PROGRAM] = const.PROGRAM_OPTIONS['idle']

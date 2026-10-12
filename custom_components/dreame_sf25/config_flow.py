@@ -15,6 +15,7 @@ from .const import (
     CONF_DID,
     CONF_REGION,
     CONF_SAFETY_STOP,
+    CONF_VIRTUAL_MODES,
     DEFAULT_REGION,
     DOMAIN,
     REGIONS,
@@ -95,6 +96,10 @@ class DreameSF25OptionsFlow(OptionsFlow):
                     ): bool,
                     vol.Required(
                         CONF_SAFETY_STOP, default=options.get(CONF_SAFETY_STOP, False)
+                    ): bool,
+                    vol.Required(
+                        CONF_VIRTUAL_MODES,
+                        default=options.get(CONF_VIRTUAL_MODES, False),
                     ): bool,
                 }
             ),

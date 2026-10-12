@@ -107,10 +107,11 @@
     "step": {
       "init": {
         "title": "Automatische Aktionen",
-        "description": "Beide Optionen sind zunächst aus. Automatische Modi starten das Gerät nach Deckelbewegungen; die Temperaturabschaltung kann ein laufendes Programm unterbrechen.",
+        "description": "Beide Optionen sind zunächst aus. Automatische Modi starten das Gerät nach Deckelbewegungen; die Temperaturabschaltung kann ein laufendes Programm unterbrechen. Behälter nach Anleitung vorbereiten; die Kurzprogramme verwenden die Selbstreinigung.",
         "data": {
           "auto_modes": "Rühren/Verdichten automatisch starten",
-          "safety_stop": "Temperaturabschaltung über die Cloud erlauben"
+          "safety_stop": "Temperaturabschaltung über die Cloud erlauben",
+          "virtual_modes": "Experimentelle Kurzprogramme freigeben"
         }
       }
     }

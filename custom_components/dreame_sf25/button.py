@@ -9,12 +9,22 @@ from dataclasses import dataclass
 
 from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import DreameSF25ConfigEntry
-from .const import ACTION_WAKE, DOMAIN, PROP_LID, PROP_RUNNING, TARGET_MODEL
+from .const import (
+    ACTION_WAKE,
+    DOMAIN,
+    PROP_LID,
+    PROP_PROGRAM,
+    PROP_RUNNING,
+    PROP_STATUS,
+    PROP_TEMPERATURE,
+    TARGET_MODEL,
+)
 from .coordinator import DreameSF25Coordinator
 
 
@@ -89,6 +99,8 @@ class DreameSF25Button(CoordinatorEntity[DreameSF25Coordinator], ButtonEntity):
     ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
+        if description.key == "wake":
+            self._attr_entity_registry_enabled_default = False
         did = coordinator.client.did
         self._attr_unique_id = f"{did}_{description.key}"
         self._attr_device_info = DeviceInfo(
@@ -98,8 +110,45 @@ class DreameSF25Button(CoordinatorEntity[DreameSF25Coordinator], ButtonEntity):
             name=coordinator.entry.title,
         )
 
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        data = self.coordinator.data or {}
+        key = self.entity_description.key
+        try:
+            if key == "pause":
+                return int(data[PROP_RUNNING]) == 1
+            if key == "resume":
+                return int(data[PROP_RUNNING]) == 0
+            if key == "open_lid":
+                return int(data[PROP_PROGRAM]) == -1 and float(data[PROP_TEMPERATURE]) <= 40
+            if key == "wake":
+                return int(data[PROP_STATUS]) == 3
+        except (KeyError, TypeError, ValueError):
+            return False
+        return True
+
     async def async_press(self) -> None:
         desc = self.entity_description
+        if desc.key in ("pause", "resume"):
+            try:
+                running = int((self.coordinator.data or {})[PROP_RUNNING])
+            except (KeyError, TypeError, ValueError) as err:
+                raise HomeAssistantError("Cannot verify the SF25 running state") from err
+            if desc.key == "pause" and running != 1:
+                raise HomeAssistantError("The SF25 is not running")
+            if desc.key == "resume" and running != 0:
+                raise HomeAssistantError("The SF25 is not paused")
+        if desc.key == "open_lid":
+            data = self.coordinator.data or {}
+            try:
+                temperature = float(data[PROP_TEMPERATURE])
+                program = int(data[PROP_PROGRAM])
+            except (KeyError, TypeError, ValueError) as err:
+                raise HomeAssistantError("Cannot verify the SF25 temperature and program") from err
+            if program != -1 or temperature > 40:
+                raise HomeAssistantError("The SF25 must be idle and at most 40 °C before opening the lid")
         if desc.action is not None:
             siid, aiid = desc.action
             await self.hass.async_add_executor_job(

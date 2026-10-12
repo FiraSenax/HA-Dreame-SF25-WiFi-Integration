@@ -39,6 +39,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import (
     CONF_AUTO_MODES,
+    CONF_VIRTUAL_MODES,
     COMMAND_GRACE,
     DEFAULT_COMPACT_HOUR,
     DEFAULT_COMPACT_MINUTE,
@@ -253,6 +254,8 @@ class DreameSF25Modes:
 
     async def async_start_virtual(self, mode: str) -> None:
         """Arranca Remover o Compactar (autolimpieza acotada)."""
+        if not self.coordinator.entry.options.get(CONF_VIRTUAL_MODES, False):
+            raise HomeAssistantError("Virtual modes are disabled in the integration options")
         await self.coordinator.async_request_refresh()
         program = _as_int((self.coordinator.data or {}).get(PROP_PROGRAM))
         if program != _PROGRAM_IDLE:
@@ -432,7 +435,10 @@ class DreameSF25Modes:
         self.coordinator.async_update_listeners()
         _LOGGER.debug("Tapa cerrada; aperturas acumuladas: %s", self.lid_count)
 
-        if not self.coordinator.entry.options.get(CONF_AUTO_MODES, False):
+        if not (
+            self.coordinator.entry.options.get(CONF_AUTO_MODES, False)
+            and self.coordinator.entry.options.get(CONF_VIRTUAL_MODES, False)
+        ):
             return
 
         if self.virtual_mode is not None:
@@ -448,7 +454,10 @@ class DreameSF25Modes:
 
     async def _async_daily_compact(self, _now) -> None:
         """Disparo diario de Compactar a la hora configurada."""
-        if not self.coordinator.entry.options.get(CONF_AUTO_MODES, False):
+        if not (
+            self.coordinator.entry.options.get(CONF_AUTO_MODES, False)
+            and self.coordinator.entry.options.get(CONF_VIRTUAL_MODES, False)
+        ):
             return
         if self.lid_count < LID_COUNT_THRESHOLD:
             return
