@@ -26,6 +26,7 @@ from .const import (
     TARGET_MODEL,
 )
 from .coordinator import DreameSF25Coordinator
+from .control_guard import REMOTE_LID_MAX_TEMPERATURE_C, can_open_lid
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -122,7 +123,7 @@ class DreameSF25Button(CoordinatorEntity[DreameSF25Coordinator], ButtonEntity):
             if key == "resume":
                 return int(data[PROP_RUNNING]) == 0
             if key == "open_lid":
-                return int(data[PROP_PROGRAM]) == -1 and float(data[PROP_TEMPERATURE]) <= 40
+                return can_open_lid(data)
             if key == "wake":
                 return int(data[PROP_STATUS]) == 3
         except (KeyError, TypeError, ValueError):
@@ -132,8 +133,11 @@ class DreameSF25Button(CoordinatorEntity[DreameSF25Coordinator], ButtonEntity):
     async def async_press(self) -> None:
         desc = self.entity_description
         if desc.key in ("pause", "resume"):
+            data = await self.hass.async_add_executor_job(
+                self.coordinator.client.get_properties, [PROP_RUNNING]
+            )
             try:
-                running = int((self.coordinator.data or {})[PROP_RUNNING])
+                running = int(data[PROP_RUNNING])
             except (KeyError, TypeError, ValueError) as err:
                 raise HomeAssistantError("Cannot verify the SF25 running state") from err
             if desc.key == "pause" and running != 1:
@@ -141,14 +145,17 @@ class DreameSF25Button(CoordinatorEntity[DreameSF25Coordinator], ButtonEntity):
             if desc.key == "resume" and running != 0:
                 raise HomeAssistantError("The SF25 is not paused")
         if desc.key == "open_lid":
-            data = self.coordinator.data or {}
-            try:
-                temperature = float(data[PROP_TEMPERATURE])
-                program = int(data[PROP_PROGRAM])
-            except (KeyError, TypeError, ValueError) as err:
-                raise HomeAssistantError("Cannot verify the SF25 temperature and program") from err
-            if program != -1 or temperature > 40:
-                raise HomeAssistantError("The SF25 must be idle and at most 40 °C before opening the lid")
+            # The coordinator may be up to five minutes behind while MQTT push
+            # is healthy. Read the device again immediately before the write.
+            data = await self.hass.async_add_executor_job(
+                self.coordinator.client.get_properties,
+                [PROP_PROGRAM, PROP_RUNNING, PROP_STATUS, PROP_TEMPERATURE],
+            )
+            if not can_open_lid(data):
+                raise HomeAssistantError(
+                    "The SF25 must be idle, stopped and at most "
+                    f"{REMOTE_LID_MAX_TEMPERATURE_C:g} °C before HA opens the lid"
+                )
         if desc.action is not None:
             siid, aiid = desc.action
             await self.hass.async_add_executor_job(
