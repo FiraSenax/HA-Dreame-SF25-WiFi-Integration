@@ -95,7 +95,7 @@ class DreameSF25Button(CoordinatorEntity[DreameSF25Coordinator], ButtonEntity):
             identifiers={(DOMAIN, str(did))},
             manufacturer="Dreame",
             model=coordinator.client.model or TARGET_MODEL,
-            name="Dreame SF25",
+            name=coordinator.entry.title,
         )
 
     async def async_press(self) -> None:

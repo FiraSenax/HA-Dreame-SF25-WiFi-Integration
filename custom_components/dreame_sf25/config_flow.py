@@ -6,11 +6,19 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 
 from .api import DreameApiError, DreameAuthError, DreameSF25Client
-from .const import CONF_DID, CONF_REGION, DEFAULT_REGION, DOMAIN, REGIONS
+from .const import (
+    CONF_AUTO_MODES,
+    CONF_DID,
+    CONF_REGION,
+    CONF_SAFETY_STOP,
+    DEFAULT_REGION,
+    DOMAIN,
+    REGIONS,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,6 +27,10 @@ class DreameSF25ConfigFlow(ConfigFlow, domain=DOMAIN):
     """Flujo de configuracion (email + contrasena + region)."""
 
     VERSION = 1
+
+    @staticmethod
+    def async_get_options_flow(config_entry):
+        return DreameSF25OptionsFlow(config_entry)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
@@ -62,3 +74,28 @@ class DreameSF25ConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+
+
+class DreameSF25OptionsFlow(OptionsFlow):
+    """Opt-in for actions initiated by the integration itself."""
+
+    def __init__(self, config_entry):
+        self._entry = config_entry
+
+    async def async_step_init(self, user_input=None):
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+        options = self._entry.options
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_AUTO_MODES, default=options.get(CONF_AUTO_MODES, False)
+                    ): bool,
+                    vol.Required(
+                        CONF_SAFETY_STOP, default=options.get(CONF_SAFETY_STOP, False)
+                    ): bool,
+                }
+            ),
+        )

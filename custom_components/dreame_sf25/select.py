@@ -50,7 +50,7 @@ class DreameSF25ProgramSelect(CoordinatorEntity[DreameSF25Coordinator], SelectEn
             identifiers={(DOMAIN, str(did))},
             manufacturer="Dreame",
             model=coordinator.client.model or TARGET_MODEL,
-            name="Dreame SF25",
+            name=coordinator.entry.title,
         )
 
     @property
@@ -73,10 +73,11 @@ class DreameSF25ProgramSelect(CoordinatorEntity[DreameSF25Coordinator], SelectEn
             await modes.async_start_virtual(option)
             return
 
-        # cambio a un modo real: cancelamos cualquier modo virtual en curso
-        await modes.async_clear_virtual()
         siid, piid = PROP_PROGRAM
         await self.hass.async_add_executor_job(
             self.coordinator.client.set_property, siid, piid, PROGRAM_OPTIONS[option]
         )
+        # Keep the expiry timer if the write fails: the virtual program still
+        # needs its scheduled stop.
+        await modes.async_clear_virtual()
         await self.coordinator.async_request_refresh()
